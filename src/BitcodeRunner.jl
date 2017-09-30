@@ -29,7 +29,7 @@ function bitcode_library(bitcodefile, mod::Module = Module())
             attr = collect(function_attributes(f))
             EnumAttribute("internal") in attr && continue
             EnumAttribute("hidden") in attr && continue
-            # @show funname = Symbol(name(f))
+            funname = Symbol(name(f))
             rettype, argtypes = params(f)
             n = length(argtypes)
             argnames = [Symbol(:x, i) for i in 1:n]
