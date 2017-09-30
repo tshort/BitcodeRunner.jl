@@ -30,11 +30,14 @@ function bitcode_library(bitcodefile, mod::Module = Module())
             EnumAttribute("internal") in attr && continue
             EnumAttribute("hidden") in attr && continue
             funname = Symbol(name(f))
-            rettype, argtypes = params(f)
+            rettypeX, argtypesX = params(f)
+            rettype = maptype(rettypeX, mod)
+            argtypes = maptype.(argtypesX, mod)
             n = length(argtypes)
             argnames = [Symbol(:x, i) for i in 1:n]
             push!(exs, :(export $funname))
             push!(exs, :($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+            # println(:($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
         end
     end
     eval(mod, Expr(:block, exs...))
@@ -76,7 +79,7 @@ function maptype(x, m::Module)
         return Ptr{maptype(eltype(x), m)}
     end
     if isa(x, LLVM.StructType)
-        @show typename = Symbol(split(name(x), ".")[2])
+        typename = Symbol(split(name(x), ".")[2])
         if !isdefined(m, typename)  # Create the type in Module `m` if not already there
             element_types = map(x -> maptype(x, m), elements(x))
             type_definition = :(struct $typename  end)
