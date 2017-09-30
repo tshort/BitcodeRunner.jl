@@ -62,3 +62,5 @@ In effect, Julia will be doing the linking.
 * This hasn't been tested on large libraries, yet.
 
 * For types defined in the bitcode file (like `M.Point` above), the field names are not included in the file, so when `bitcode_library` creates the struct for this, dummy field names of `x1`, `x2`, ... are used. You can specify field names if you pre-define a Module and include a definition for the struct.
+
+* Note that bitcode files are not very portable. You need to use the same version of Clang/LLVM that Julia uses, and you generally can't cross between platforms.
