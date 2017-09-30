@@ -25,14 +25,17 @@ function bitcode_library(bitcodefile, mod::Module = Module())
     fns = functions(llvmmod)
     exs = Any[]
     for f in fns
-        funname = Symbol(name(f))
-        rettype, argtypes = params(f)
-        rettype = maptype(rettype, mod)
-        argtypes = maptype.(argtypes, mod)
-        n = length(argtypes)
-        argnames = [Symbol(:x, i) for i in 1:n]
-        push!(exs, :(export $funname))
-        push!(exs, :($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+        try
+            attr = collect(function_attributes(f))
+            EnumAttribute("internal") in attr && continue
+            EnumAttribute("hidden") in attr && continue
+            # @show funname = Symbol(name(f))
+            rettype, argtypes = params(f)
+            n = length(argtypes)
+            argnames = [Symbol(:x, i) for i in 1:n]
+            push!(exs, :(export $funname))
+            push!(exs, :($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+        end
     end
     eval(mod, Expr(:block, exs...))
     return mod
@@ -61,7 +64,8 @@ function maptype(x, m::Module)
         return Void
     end
     if isa(x, LLVM.IntegerType)
-        return eval(Symbol(:Int, width(x)))
+        w = width(x)
+        return w == 1 ? Bool : eval(Symbol(:Int, w))
     end
     if isa(x, LLVM.FloatingPointType)
         return isa(x, LLVM.LLVMHalf)   ? Float16 :
@@ -72,7 +76,7 @@ function maptype(x, m::Module)
         return Ptr{maptype(eltype(x), m)}
     end
     if isa(x, LLVM.StructType)
-        typename = Symbol(split(name(x), ".")[2])
+        @show typename = Symbol(split(name(x), ".")[2])
         if !isdefined(m, typename)  # Create the type in Module `m` if not already there
             element_types = map(x -> maptype(x, m), elements(x))
             type_definition = :(struct $typename  end)
@@ -81,7 +85,11 @@ function maptype(x, m::Module)
         end
         return getfield(m, typename)
     end
-    error("Unknown or unsupported LLVM type: $x")
+    if isa(x, LLVM.ArrayType)
+        return NTuple{Int32(length(x)), maptype(eltype(x), m)}
+    end
+    warn("Unknown or unsupported LLVM type: $x")
+    Void
 end
 
 end # module
