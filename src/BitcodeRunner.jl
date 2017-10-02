@@ -25,22 +25,27 @@ function bitcode_library(bitcodefile, mod::Module = Module())
     fns = functions(llvmmod)
     exs = Any[]
     for f in fns
-        try
-            attr = collect(function_attributes(f))
-            EnumAttribute("internal") in attr && continue
-            EnumAttribute("hidden") in attr && continue
+            # @show attr = collect(function_attributes(f))
+            # EnumAttribute("internal") in attr && continue
+            # EnumAttribute("hidden") in attr && continue
             funname = Symbol(name(f))
+        try
             rettypeX, argtypesX = params(f)
             rettype = maptype(rettypeX, mod)
             argtypes = maptype.(argtypesX, mod)
             n = length(argtypes)
             argnames = [Symbol(:x, i) for i in 1:n]
-            push!(exs, :(export $funname))
-            push!(exs, :($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+            # push!(exs, :(export $funname))
+            # push!(exs, :($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
             # println(:($funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+            eval(mod, :(export $funname; $funname($(argnames...)) = Base.llvmcall($(LLVM.ref(f)), $rettype, Tuple{$(argtypes...)}, $([:($myconvert($(argtypes[i]), $(argnames[i]))) for i in 1:n]...))))
+            println("$funname")
+        catch
+            println("***FAILED: $funname")
         end
     end
-    eval(mod, Expr(:block, exs...))
+    # open("t.out", "w") do io; print(io, Expr(:block, exs...)) end
+    # eval(mod, Expr(:block, exs...))
     return mod
 end
 
@@ -91,8 +96,7 @@ function maptype(x, m::Module)
     if isa(x, LLVM.ArrayType)
         return NTuple{Int32(length(x)), maptype(eltype(x), m)}
     end
-    warn("Unknown or unsupported LLVM type: $x")
-    Void
+    error("Unknown or unsupported LLVM type: $x")
 end
 
 end # module
